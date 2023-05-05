@@ -1,8 +1,9 @@
 [package]
 name = "plt-rs"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2021"
 authors = ["ohchase"]
+license = "MIT"
 description = "Library for iterating and hooking linux and android applications PLT (Procedure Linkage Table) at runtime"
 documentation = "https://docs.rs/plt-rs"
 readme = "README.md"
@@ -11,6 +12,8 @@ homepage = "https://github.com/ohchase/plt-rs/"
 keywords = ["hacking", "linux", "android", "reversing", "plt", "elf", "bionic", "linkmap"]
 exclude = ["/examples", "/templates"]
 
+[lib]
+crate-type = ["lib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
