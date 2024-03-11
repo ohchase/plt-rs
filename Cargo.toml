@@ -9,7 +9,7 @@ documentation = "https://docs.rs/plt-rs"
 readme = "README.md"
 repository = "https://github.com/ohchase/plt-rs/"
 homepage = "https://github.com/ohchase/plt-rs/"
-keywords = ["hacking", "linux", "android", "reversing", "plt", "elf", "bionic", "linkmap"]
+keywords = ["plt", "elf", "bionic", "linker", "hooking"]
 exclude = ["/examples"]
 
 [lib]
