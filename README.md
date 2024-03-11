@@ -46,6 +46,12 @@ Refer to `examples/hook_getpid.rs` for the full example, supporting android and 
 A good chunk of the code is for the actual pointer replacement to hook the function!
 
 ```rust
+
+/// our own get pid function
+unsafe fn getpid() -> u32 {
+    999
+}
+
 /// Finding target function differs on 32 bit and 64 bit.
 /// On 64 bit we want to check the addended relocations table only, opposed to the addendless relocations table.
 /// Additionally, we will fall back to the plt given it is an addended relocation table.
@@ -140,4 +146,13 @@ fn main() -> Result<()> {
 
     Ok(())
 }
+```
+
+```terminal
+application pid is 127765
+successfully identified executable
+successfully initialied dynamic library for instrumentation
+successfully identified libc getpid offset: 0x7E460
+page start for function is 0x000061019c41b000
+new pid is: 999
 ```
