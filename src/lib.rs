@@ -505,7 +505,8 @@ impl<'a> DynamicLibrary<'a> {
                     symbols
                         .resolve_name(e.symbol_index() as usize, string_table)
                         .map(|s| (e, s))
-                }).find(|(_, s)| s.eq(symbol_name))
+                })
+                .find(|(_, s)| s.eq(symbol_name))
                 .map(|(target_function, _)| target_function)
             {
                 return Some(symbol);
@@ -519,7 +520,8 @@ impl<'a> DynamicLibrary<'a> {
                     symbols
                         .resolve_name(e.symbol_index() as usize, string_table)
                         .map(|s| (e, s))
-                }).find(|(_, s)| s.eq(symbol_name))
+                })
+                .find(|(_, s)| s.eq(symbol_name))
                 .map(|(target_function, _)| target_function)
             {
                 return Some(symbol);
@@ -630,6 +632,12 @@ pub fn collect_modules<'a>() -> Vec<LoadedLibrary<'a>> {
         // We have to copy sthe `dl_phdr_info` struct out, as the same memory buffer is used for
         // each entry during the iteration process. Otherwise we could have used a vector of
         // pointers.
+        println!("{} {}", dl_info.dlpi_addr, dl_info.dlpi_phnum);
+
+        if dl_info.dlpi_phnum == 0 {
+            return;
+        }
+
         let program_headers =
             unsafe { std::slice::from_raw_parts(dl_info.dlpi_phdr, dl_info.dlpi_phnum as usize) };
         objs.push(LoadedLibrary {
