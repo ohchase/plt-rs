@@ -1,6 +1,6 @@
 [package]
 name = "plt-rs"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["ohchase"]
 license = "MIT"
@@ -9,7 +9,7 @@ documentation = "https://docs.rs/plt-rs"
 readme = "README.md"
 repository = "https://github.com/ohchase/plt-rs/"
 homepage = "https://github.com/ohchase/plt-rs/"
-keywords = ["plt", "elf", "bionic", "linker", "hooking"]
+keywords = ["plt", "elf", "linker", "hook", "symbols"]
 exclude = ["/examples"]
 
 [lib]
@@ -18,8 +18,8 @@ crate-type = ["lib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-libc = "0.2.149"
-thiserror = "1.0.49"
+libc = "0.2"
+thiserror = "1.0"
 
 [dev-dependencies]
 anyhow = "1.0.75"

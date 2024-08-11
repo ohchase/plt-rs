@@ -1,4 +1,4 @@
-# PLT-RS
+# Plt-rs
 
 ## Change Notes
 ### 0.1.0 initial release
@@ -6,9 +6,14 @@
 - removed hooking functionality
 - reduced linux/android bloat
 - documented and generally made more ergonomic
+### 0.3.0 usability
+- promote finding function in dynamic library functionality to public
+- added tests
+- don't use patch version in dependencies
+- ci/cd dependency updates
 
-## Inspirations / Sources utilized
-Projects I referenced while working on this.
+## Inspired
+Projects I referenced and was heavily inspired by while working on this.
 - [Plthook by Kubo] https://github.com/kubo/plthook
 - [Bhook by bytedance] https://github.com/bytedance/bhook
 
@@ -27,7 +32,9 @@ the library has to change how it crawls the dynamially loaded objects.
 ## Why
 Video game modding, reverse engineering, etc
 - Can hook networking calls: recv / send
-- Rendering calls: eglSwapBuffers / video game overlays
+- Rendering calls: eglSwapBuffers / video game mods and overlays
+- Application hardening and monitoring
+- Defensive and Offensive usages
 
 ## Supports and tests against many targets
 - ![i686-unknown-linux-gnu](https://github.com/ohchase/plt-rs/actions/workflows/i686-unknown-linux-gnu.yml/badge.svg)
@@ -156,3 +163,8 @@ successfully identified libc getpid offset: 0x7E460
 page start for function is 0x000061019c41b000
 new pid is: 999
 ```
+
+## References / Inspirations
+Projects I referenced and was heavily inspired by while working on this.
+- [Plthook by Kubo] https://github.com/kubo/plthook
+- [Bhook by bytedance] https://github.com/bytedance/bhook

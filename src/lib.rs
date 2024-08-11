@@ -488,7 +488,7 @@ impl<'a> DynamicLibrary<'a> {
                 return Some(symbol);
             }
         }
-        return None;
+        None
     }
 
     /// Finding target function differs on 32 bit and 64 bit.
@@ -505,9 +505,7 @@ impl<'a> DynamicLibrary<'a> {
                     symbols
                         .resolve_name(e.symbol_index() as usize, string_table)
                         .map(|s| (e, s))
-                })
-                .filter(|(_, s)| s.eq(symbol_name))
-                .next()
+                }).find(|(_, s)| s.eq(symbol_name))
                 .map(|(target_function, _)| target_function)
             {
                 return Some(symbol);
@@ -521,15 +519,13 @@ impl<'a> DynamicLibrary<'a> {
                     symbols
                         .resolve_name(e.symbol_index() as usize, string_table)
                         .map(|s| (e, s))
-                })
-                .filter(|(_, s)| s.eq(symbol_name))
-                .next()
+                }).find(|(_, s)| s.eq(symbol_name))
                 .map(|(target_function, _)| target_function)
             {
                 return Some(symbol);
             }
         }
-        return None;
+        None
     }
     /// Access the plt as a dynamic relocation table if possible
     /// can fail if the plt is not available or the plt is with addend
