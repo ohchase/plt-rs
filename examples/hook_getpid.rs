@@ -17,10 +17,13 @@ fn find_executable<'a>() -> Option<plt_rs::LoadedLibrary<'a>> {
 /// Finding executable target differs on unix and android
 #[cfg(target_os = "android")]
 fn find_executable<'a>() -> Option<plt_rs::LoadedLibrary<'a>> {
+    let executable = std::env::current_exe().expect("current exe");
+    let file_stem = executable.file_stem()?;
+    let file_stem = file_stem.to_str()?;
     let loaded_modules = collect_modules();
     loaded_modules
         .into_iter()
-        .filter(|lib| lib.name().contains("hook_getpid"))
+        .filter(|lib| lib.name().contains(file_stem))
         .next()
 }
 
