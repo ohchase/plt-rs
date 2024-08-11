@@ -1,7 +1,7 @@
 use anyhow::anyhow;
 use anyhow::Result;
 use libc::c_void;
-use plt_rs::{collect_modules, DynamicLibrary, DynamicSymbols};
+use plt_rs::{collect_modules, DynamicLibrary};
 
 unsafe fn getpid() -> u32 {
     999
@@ -17,97 +17,14 @@ fn find_executable<'a>() -> Option<plt_rs::LoadedLibrary<'a>> {
 /// Finding executable target differs on unix and android
 #[cfg(target_os = "android")]
 fn find_executable<'a>() -> Option<plt_rs::LoadedLibrary<'a>> {
+    let executable = std::env::current_exe().expect("current exe");
+    let file_stem = executable.file_stem()?;
+    let file_stem = file_stem.to_str()?;
     let loaded_modules = collect_modules();
     loaded_modules
         .into_iter()
-        .filter(|lib| lib.name().contains("hook_getpid"))
+        .filter(|lib| lib.name().contains(file_stem))
         .next()
-}
-
-/// Finding target function differs on 32 bit and 64 bit.
-/// On 32 bit we want to check the relocations table only, opposed to the addend relocations table.
-/// Additionally, we will fall back to the plt given it is an addendless relocation table.
-#[cfg(target_pointer_width = "32")]
-fn try_find_function<'a>(
-    dyn_lib: &'a DynamicLibrary,
-    dyn_symbols: &'a DynamicSymbols,
-) -> Option<&'a plt_rs::elf32::DynRel> {
-    let string_table = dyn_lib.string_table();
-    if let Some(dyn_relas) = dyn_lib.relocs() {
-        let dyn_relas = dyn_relas.entries().iter();
-        if let Some(symbol) = dyn_relas
-            .flat_map(|e| {
-                dyn_symbols
-                    .resolve_name(e.symbol_index() as usize, string_table)
-                    .map(|s| (e, s))
-            })
-            .filter(|(_, s)| s.eq("getpid"))
-            .next()
-            .map(|(target_function, _)| target_function)
-        {
-            return Some(symbol);
-        }
-    }
-
-    if let Some(dyn_relas) = dyn_lib.plt_rel() {
-        let dyn_relas = dyn_relas.entries().iter();
-        if let Some(symbol) = dyn_relas
-            .flat_map(|e| {
-                dyn_symbols
-                    .resolve_name(e.symbol_index() as usize, string_table)
-                    .map(|s| (e, s))
-            })
-            .filter(|(_, s)| s.eq("getpid"))
-            .next()
-            .map(|(target_function, _)| target_function)
-        {
-            return Some(symbol);
-        }
-    }
-    return None;
-}
-
-/// Finding target function differs on 32 bit and 64 bit.
-/// On 64 bit we want to check the addended relocations table only, opposed to the addendless relocations table.
-/// Additionally, we will fall back to the plt given it is an addended relocation table.
-#[cfg(target_pointer_width = "64")]
-fn try_find_function<'a>(
-    dyn_lib: &'a DynamicLibrary,
-    dyn_symbols: &'a DynamicSymbols,
-) -> Option<&'a plt_rs::elf64::DynRela> {
-    let string_table = dyn_lib.string_table();
-    if let Some(dyn_relas) = dyn_lib.addend_relocs() {
-        let dyn_relas = dyn_relas.entries().iter();
-        if let Some(symbol) = dyn_relas
-            .flat_map(|e| {
-                dyn_symbols
-                    .resolve_name(e.symbol_index() as usize, string_table)
-                    .map(|s| (e, s))
-            })
-            .filter(|(_, s)| s.eq("getpid"))
-            .next()
-            .map(|(target_function, _)| target_function)
-        {
-            return Some(symbol);
-        }
-    }
-
-    if let Some(dyn_relas) = dyn_lib.plt_rela() {
-        let dyn_relas = dyn_relas.entries().iter();
-        if let Some(symbol) = dyn_relas
-            .flat_map(|e| {
-                dyn_symbols
-                    .resolve_name(e.symbol_index() as usize, string_table)
-                    .map(|s| (e, s))
-            })
-            .filter(|(_, s)| s.eq("getpid"))
-            .next()
-            .map(|(target_function, _)| target_function)
-        {
-            return Some(symbol);
-        }
-    }
-    return None;
 }
 
 fn main() -> Result<()> {
@@ -120,11 +37,9 @@ fn main() -> Result<()> {
     let dyn_lib = DynamicLibrary::initialize(executable_entry)?;
     println!("successfully initialied dynamic library for instrumentation");
 
-    let dyn_symbols = dyn_lib
-        .symbols()
-        .ok_or(anyhow!("dynamic lib should have symbols"))?;
-    let target_function =
-        try_find_function(&dyn_lib, &dyn_symbols).ok_or(anyhow!("unable to find getpid symbol"))?;
+    let target_function = dyn_lib
+        .try_find_function("getpid")
+        .ok_or(anyhow!("unable to find getpid symbol"))?;
     println!(
         "successfully identified libc getpid offset: {:#X?}",
         target_function.r_offset

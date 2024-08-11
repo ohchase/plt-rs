@@ -3,6 +3,7 @@ use plt_rs::{collect_modules, DynamicLibrary, RelocationTable};
 
 fn main() -> Result<()> {
     let entries = collect_modules();
+    println!("collected modules");
 
     for entry in entries.into_iter() {
         println!("[{:?}] Addr: {:#X?}", entry.name(), entry.addr());
