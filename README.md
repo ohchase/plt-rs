@@ -1,22 +1,5 @@
 # Plt-rs
 
-## Change Notes
-### 0.1.0 initial release
-### 0.2.0 total revamp
-- removed hooking functionality
-- reduced linux/android bloat
-- documented and generally made more ergonomic
-### 0.3.0 usability
-- promote finding function in dynamic library functionality to public
-- added tests
-- don't use patch version in dependencies
-- ci/cd dependency updates
-
-## Inspired
-Projects I referenced and was heavily inspired by while working on this.
-- [Plthook by Kubo] https://github.com/kubo/plthook
-- [Bhook by bytedance] https://github.com/bytedance/bhook
-
 ## Overview
 By crawling the dynamically loaded objects of an executable we can hook exported functions.
 Generally, PLT hooking is an ideal solution for hooking given you can guarantee a Unix Like environment.
@@ -38,7 +21,7 @@ highlighted builds
 - ![aarch64-linux-android](https://github.com/ohchase/plt-rs/actions/workflows/aarch64-linux-android.yml/badge.svg)
 - ![armv7-linux-androideabi](https://github.com/ohchase/plt-rs/actions/workflows/armv7-linux-androideabi.yml/badge.svg)
 
-## Show me da code
+## Worked Example hooking `getpid`
 Here we are hooking our own executables usages of libc getpid.
 Refer to `examples/hook_getpid.rs` for the full example, supporting android and 32 bit.
 A good chunk of the code is for the actual pointer replacement to hook the function!
