@@ -19,7 +19,7 @@ crate-type = ["lib"]
 
 [dependencies]
 libc = "0.2"
-thiserror = "1.0"
+thiserror = "2.0"
 
 [dev-dependencies]
 anyhow = "1.0.93"
