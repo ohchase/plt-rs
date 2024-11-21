@@ -1,4 +1,6 @@
 # Plt-rs
+![Crates.io](https://img.shields.io/crates/v/plt-rs)
+![Crates.io License](https://img.shields.io/crates/l/plt-rs)
 
 ## Overview
 By crawling the dynamically loaded objects of an executable we can hook exported functions.
