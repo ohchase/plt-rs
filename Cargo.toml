@@ -22,4 +22,4 @@ libc = "0.2"
 thiserror = "2.0"
 
 [dev-dependencies]
-anyhow = "1.0.97"
+anyhow = "1.0.98"
