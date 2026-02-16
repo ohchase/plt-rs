@@ -46,7 +46,5 @@ path = "tests/integration_tests.rs"
 [dependencies.libc]
 version = "0.2"
 
-
-
 [dev-dependencies.anyhow]
 version = "1.0.97"
