@@ -60,9 +60,14 @@ impl DynRela {
 }
 
 /// An unknown Dynamic Section Type was observed
-#[derive(Debug, thiserror::Error)]
-#[error("Unknown Dynamic section type witnessed: `{0}`")]
+#[derive(Debug)]
 pub struct DynTypeError(self::Word);
+impl Display for DynTypeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Unknown Dynamic section type witnessed: {}", self.0)
+    }
+}
+impl Error for DynTypeError {}
 
 impl TryFrom<self::Word> for DynamicSectionType {
     type Error = DynTypeError;
