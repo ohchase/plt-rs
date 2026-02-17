@@ -4,23 +4,20 @@ use alloc::borrow::Cow;
 use alloc::vec::Vec;
 use core::error::Error;
 use core::fmt::Display;
-
+use core::mem::size_of;
+use core::result::Result;
 #[cfg(target_pointer_width = "64")]
 pub mod elf64;
 #[cfg(target_pointer_width = "64")]
 use elf64 as elf;
 #[cfg(target_pointer_width = "32")]
 pub mod elf32;
-use core::mem::size_of;
-use core::result::Result;
 #[cfg(target_pointer_width = "32")]
 use elf32 as elf;
 /// Errors related to dynamic libraries
 #[derive(Debug)]
 pub enum DynamicError {
-    /// Tried to cast from a raw type section and was unmapped
     TypeCast(elf::DynTypeError),
-    /// Given prescence of `0` section type, `1` section type would be required
     DependentSection(DynamicSectionType, DynamicSectionType),
     RequiredSection(DynamicSectionType),
     ProgramHeader,

@@ -1,6 +1,5 @@
-use core::{error::Error, fmt::Display};
-
 use super::DynamicSectionType;
+use core::{error::Error, fmt::Display};
 
 pub type Word = libc::Elf64_Word;
 pub type Half = libc::Elf64_Half;

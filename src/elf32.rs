@@ -1,5 +1,5 @@
 use super::DynamicSectionType;
-
+use core::{error::Error, fmt::Display};
 pub type Word = libc::Elf32_Word;
 // manual impl, signed word is i32;
 pub type SignedWord = i32;
