@@ -15,11 +15,8 @@ exclude = ["/examples"]
 [lib]
 crate-type = ["lib"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 libc = "0.2"
-thiserror = "2.0"
 
 [dev-dependencies]
 anyhow = "1.0.101"

@@ -1,4 +1,5 @@
 use super::DynamicSectionType;
+use core::{error::Error, fmt::Display};
 
 pub type Word = libc::Elf64_Word;
 pub type Half = libc::Elf64_Half;
@@ -63,10 +64,14 @@ impl DynRela {
 }
 
 /// An unknown Dynamic Section Type was observed
-#[derive(Debug, thiserror::Error)]
-#[error("Unknown Dynamic section type witnessed: `{0}`")]
+#[derive(Debug)]
 pub struct DynTypeError(self::ExtendedWord);
-
+impl Display for DynTypeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Unknown Dynamic section type witnessed: {}", self.0)
+    }
+}
+impl Error for DynTypeError {}
 impl TryFrom<self::ExtendedWord> for DynamicSectionType {
     type Error = DynTypeError;
     fn try_from(value: self::ExtendedWord) -> Result<Self, Self::Error> {

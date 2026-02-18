@@ -1,34 +1,49 @@
-use std::borrow::Cow;
-use thiserror::Error;
-
+#![no_std]
+extern crate alloc;
+use alloc::borrow::Cow;
+use alloc::vec::Vec;
+use core::error::Error;
+use core::fmt::Display;
+use core::mem::size_of;
+use core::result::Result;
 #[cfg(target_pointer_width = "64")]
 pub mod elf64;
 #[cfg(target_pointer_width = "64")]
 use elf64 as elf;
-
 #[cfg(target_pointer_width = "32")]
 pub mod elf32;
 #[cfg(target_pointer_width = "32")]
 use elf32 as elf;
-
 /// Errors related to dynamic libraries
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum DynamicError {
-    /// Tried to cast from a raw type section and was unmapped
-    #[error("Unknown type witnessed: `{0}`")]
-    TypeCast(#[from] elf::DynTypeError),
-
-    /// Given prescence of `0` section type, `1` section type would be required
-    #[error("Given the prescence of `{0:#?}`, expected prescence of `{1:#?}`")]
+    TypeCast(elf::DynTypeError),
     DependentSection(DynamicSectionType, DynamicSectionType),
-
-    #[error("Failed to parse, required section missing `{0:#?}`")]
     RequiredSection(DynamicSectionType),
-
-    #[error("No dynamic program header available")]
     ProgramHeader,
 }
-
+impl Display for DynamicError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::TypeCast(e) => write!(f, "Unknown type witnessed: {e}"),
+            Self::DependentSection(dependent, depended) => write!(
+                f,
+                "Given the prescence of `{dependent:#?}`, expected prescence of `{depended:#?}`"
+            ),
+            Self::RequiredSection(required) => write!(
+                f,
+                "Failed to parse, required section missing `{required:#?}`"
+            ),
+            Self::ProgramHeader => write!(f, "No dynamic program header available"),
+        }
+    }
+}
+impl From<elf::DynTypeError> for DynamicError {
+    fn from(value: elf::DynTypeError) -> Self {
+        Self::TypeCast(value)
+    }
+}
+impl Error for DynamicError {}
 /// Section type enumeration
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 #[allow(non_camel_case_types)]
@@ -104,7 +119,7 @@ impl DynamicSymbols<'_> {
         &'b self,
         index: usize,
         string_table: &'b StringTable<'b>,
-    ) -> Option<Cow<str>> {
+    ) -> Option<Cow<'b, str>> {
         let entry = self.get(index)?;
         string_table.read_at(entry.st_name as usize)
     }
@@ -125,10 +140,12 @@ pub struct StringTable<'a> {
 
 impl<'a> StringTable<'a> {
     /// Extract string from table starting at carrot position
-    pub fn read_at(&self, carrot: usize) -> Option<Cow<str>> {
+    pub fn read_at(&'a self, carrot: usize) -> Option<Cow<'a, str>> {
         match carrot >= self.raw.len() {
             true => None,
-            false => unsafe { Some(std::ffi::CStr::from_ptr(&self.raw[carrot]).to_string_lossy()) },
+            false => unsafe {
+                Some(core::ffi::CStr::from_ptr(&self.raw[carrot]).to_string_lossy())
+            },
         }
     }
 
@@ -223,7 +240,7 @@ pub struct DynamicLibrary<'a> {
 fn extract_dyn_symbols<'a, 'b>(
     lib: &'a LoadedLibrary<'a>,
     dynamic_section: &'a DynamicSection<'a>,
-) -> std::result::Result<Option<DynamicSymbols<'b>>, DynamicError> {
+) -> Result<Option<DynamicSymbols<'b>>, DynamicError> {
     // No actual requirement for dynamic symbols.
     let Some(dyn_symbol_table) = dynamic_section.find_section(DynamicSectionType::DT_SYMTAB) else {
         return Ok(None);
@@ -238,7 +255,7 @@ fn extract_dyn_symbols<'a, 'b>(
             DynamicSectionType::DT_SYMENT,
         ))?
         .d_val_ptr as usize;
-    assert_eq!(table_size, std::mem::size_of::<elf::DynSym>());
+    assert_eq!(table_size, size_of::<elf::DynSym>());
 
     // We don't have enough information to tell if this elf represents an Object Mapped or Shared Library / Executable mapped entry
     // For object mapped the ptr's are relative. So we have to rebase by the virtual address from dl_info
@@ -255,7 +272,7 @@ fn extract_dyn_symbols<'a, 'b>(
 /// Access the libraries dynamic section by dereferencing the PT_DYN program header's virtual address value
 fn extract_dyn_section<'a, 'b>(
     lib: &'a LoadedLibrary<'a>,
-) -> std::result::Result<DynamicSection<'b>, DynamicError> {
+) -> Result<DynamicSection<'b>, DynamicError> {
     let dynamic_header = lib
         .program_headers()
         .find(|p_h| p_h.header_type() == 0x02)
@@ -272,7 +289,7 @@ fn extract_dyn_section<'a, 'b>(
 fn extract_dyn_string_table<'a, 'b>(
     lib: &'a LoadedLibrary<'a>,
     dynamic_section: &'a DynamicSection<'a>,
-) -> std::result::Result<StringTable<'b>, DynamicError> {
+) -> Result<StringTable<'b>, DynamicError> {
     let str_table_entry = dynamic_section
         .find_section(DynamicSectionType::DT_STRTAB)
         .ok_or(DynamicError::RequiredSection(DynamicSectionType::DT_STRTAB))?;
@@ -292,7 +309,7 @@ fn extract_dyn_string_table<'a, 'b>(
     } as *const libc::c_char;
 
     Ok(StringTable {
-        raw: unsafe { std::slice::from_raw_parts(str_table_ptr, table_size) },
+        raw: unsafe { core::slice::from_raw_parts(str_table_ptr, table_size) },
     })
 }
 
@@ -300,7 +317,7 @@ fn extract_dyn_string_table<'a, 'b>(
 fn extract_dyn_relocs<'a, 'b>(
     lib: &'a LoadedLibrary<'a>,
     dynamic_section: &'a DynamicSection<'a>,
-) -> std::result::Result<Option<DynamicRelocations<'b>>, DynamicError> {
+) -> Result<Option<DynamicRelocations<'b>>, DynamicError> {
     let Some(dyn_rel_entry) = dynamic_section.find_section(DynamicSectionType::DT_REL) else {
         return Ok(None);
     };
@@ -320,7 +337,7 @@ fn extract_dyn_relocs<'a, 'b>(
         ))?
         .d_val_ptr as usize;
 
-    assert_eq!(entry_size, std::mem::size_of::<elf::DynRel>());
+    assert_eq!(entry_size, size_of::<elf::DynRel>());
 
     let entry_count = total_size / entry_size;
     // We don't have enough information to tell if this elf represents an Object Mapped or Shared Library / Executable mapped entry
@@ -331,7 +348,7 @@ fn extract_dyn_relocs<'a, 'b>(
     } as *const elf::DynRel;
 
     Ok(Some(DynamicRelocations {
-        inner: unsafe { std::slice::from_raw_parts(dyn_rel_entry, entry_count) },
+        inner: unsafe { core::slice::from_raw_parts(dyn_rel_entry, entry_count) },
     }))
 }
 
@@ -339,7 +356,7 @@ fn extract_dyn_relocs<'a, 'b>(
 fn extract_dyn_addend_relocs<'a, 'b>(
     lib: &'a LoadedLibrary<'a>,
     dynamic_section: &'a DynamicSection<'a>,
-) -> std::result::Result<Option<DynamicAddendRelocations<'b>>, DynamicError> {
+) -> Result<Option<DynamicAddendRelocations<'b>>, DynamicError> {
     let Some(dyn_rel_entry) = dynamic_section.find_section(DynamicSectionType::DT_RELA) else {
         return Ok(None);
     };
@@ -359,7 +376,7 @@ fn extract_dyn_addend_relocs<'a, 'b>(
         ))?
         .d_val_ptr as usize;
 
-    assert_eq!(entry_size, std::mem::size_of::<elf::DynRela>());
+    assert_eq!(entry_size, size_of::<elf::DynRela>());
 
     let entry_count = total_size / entry_size;
     // We don't have enough information to tell if this elf represents an Object Mapped or Shared Library / Executable mapped entry
@@ -370,7 +387,7 @@ fn extract_dyn_addend_relocs<'a, 'b>(
     } as *const elf::DynRela;
 
     Ok(Some(DynamicAddendRelocations {
-        inner: unsafe { std::slice::from_raw_parts(dyn_rel_entry, entry_count) },
+        inner: unsafe { core::slice::from_raw_parts(dyn_rel_entry, entry_count) },
     }))
 }
 
@@ -378,7 +395,7 @@ fn extract_dyn_addend_relocs<'a, 'b>(
 fn extract_dyn_plt<'a, 'b>(
     lib: &'a LoadedLibrary<'a>,
     dynamic_section: &'a DynamicSection<'a>,
-) -> std::result::Result<Option<RelocationTable<'b>>, DynamicError> {
+) -> Result<Option<RelocationTable<'b>>, DynamicError> {
     // decipher if its rel or rela relocation entries
     // if this isn't present we can't have a plt
     let Some(dyn_type) = dynamic_section.find_section(DynamicSectionType::DT_PLTREL) else {
@@ -408,18 +425,18 @@ fn extract_dyn_plt<'a, 'b>(
 
     Ok(match relocation_type {
         DynamicSectionType::DT_REL => {
-            let entry_count = total_size / std::mem::size_of::<elf::DynRel>();
+            let entry_count = total_size / size_of::<elf::DynRel>();
             Some(RelocationTable::WithoutAddend(DynamicRelocations {
                 inner: unsafe {
-                    std::slice::from_raw_parts(entry_addr as *const elf::DynRel, entry_count)
+                    core::slice::from_raw_parts(entry_addr as *const elf::DynRel, entry_count)
                 },
             }))
         }
         DynamicSectionType::DT_RELA => {
-            let entry_count = total_size / std::mem::size_of::<elf::DynRela>();
+            let entry_count = total_size / size_of::<elf::DynRela>();
             Some(RelocationTable::WithAddend(DynamicAddendRelocations {
                 inner: unsafe {
-                    std::slice::from_raw_parts(entry_addr as *const elf::DynRela, entry_count)
+                    core::slice::from_raw_parts(entry_addr as *const elf::DynRela, entry_count)
                 },
             }))
         }
@@ -431,7 +448,7 @@ impl<'a> DynamicLibrary<'a> {
     /// Try to consume a LoadedLibrary and create a resolved Dynamic view
     /// The Dynamic Library will take ownership of the load library as well as store
     /// all relevant dynamic sections for easy access and symbol resolution
-    pub fn initialize(lib: LoadedLibrary<'a>) -> std::result::Result<Self, DynamicError> {
+    pub fn initialize(lib: LoadedLibrary<'a>) -> Result<Self, DynamicError> {
         let dyn_section = extract_dyn_section(&lib)?;
         let dyn_string_table = extract_dyn_string_table(&lib, &dyn_section)?;
         let dyn_symbols = extract_dyn_symbols(&lib, &dyn_section)?;
@@ -591,7 +608,7 @@ pub struct LoadedLibrary<'a> {
     program_headers: &'a [elf::ProgramHeader],
 }
 
-impl LoadedLibrary<'_> {
+impl<'a> LoadedLibrary<'a> {
     /// Access the libraries string name
     /// This is more the libraries `path` than the name per say
     pub fn name(&self) -> &str {
@@ -628,18 +645,17 @@ pub fn collect_modules<'a>() -> Vec<LoadedLibrary<'a>> {
 
     // Pushes an `Object` into the result vector on the behalf of C.
     extern "C" fn push_object(objs: &mut Vec<LoadedLibrary>, dl_info: &libc::dl_phdr_info) {
-        let name = unsafe { std::ffi::CStr::from_ptr(dl_info.dlpi_name) }.to_string_lossy();
+        let name = unsafe { core::ffi::CStr::from_ptr(dl_info.dlpi_name) }.to_string_lossy();
         // We have to copy sthe `dl_phdr_info` struct out, as the same memory buffer is used for
         // each entry during the iteration process. Otherwise we could have used a vector of
         // pointers.
-        println!("{} {}", dl_info.dlpi_addr, dl_info.dlpi_phnum);
 
         if dl_info.dlpi_phnum == 0 {
             return;
         }
 
         let program_headers =
-            unsafe { std::slice::from_raw_parts(dl_info.dlpi_phdr, dl_info.dlpi_phnum as usize) };
+            unsafe { core::slice::from_raw_parts(dl_info.dlpi_phdr, dl_info.dlpi_phnum as usize) };
         objs.push(LoadedLibrary {
             addr: dl_info.dlpi_addr as usize,
             name,
