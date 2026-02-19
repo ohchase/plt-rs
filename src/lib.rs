@@ -3,6 +3,7 @@ extern crate alloc;
 use alloc::borrow::Cow;
 use alloc::vec::Vec;
 use core::error::Error;
+use core::ffi::c_void;
 use core::fmt::Display;
 use core::mem::size_of;
 use core::result::Result;
@@ -14,6 +15,7 @@ use elf64 as elf;
 pub mod elf32;
 #[cfg(target_pointer_width = "32")]
 use elf32 as elf;
+
 /// Errors related to dynamic libraries
 #[derive(Debug)]
 pub enum DynamicError {
@@ -22,6 +24,7 @@ pub enum DynamicError {
     RequiredSection(DynamicSectionType),
     ProgramHeader,
 }
+
 impl Display for DynamicError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -38,12 +41,15 @@ impl Display for DynamicError {
         }
     }
 }
+
 impl From<elf::DynTypeError> for DynamicError {
     fn from(value: elf::DynTypeError) -> Self {
         Self::TypeCast(value)
     }
 }
+
 impl Error for DynamicError {}
+
 /// Section type enumeration
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
 #[allow(non_camel_case_types)]
@@ -595,6 +601,12 @@ impl<'a> DynamicLibrary<'a> {
         &self.library
     }
 
+    /// Accesses the Dynamic modules base address.
+    /// Convenience function that reads base addr from backing LoadedLibrary
+    pub fn base_addr(&self) -> usize {
+        self.library.addr
+    }
+
     /// Access the dynamic string table
     pub fn string_table(&self) -> &StringTable<'_> {
         &self.dyn_string_table
@@ -636,6 +648,65 @@ impl<'a> LoadedLibrary<'a> {
     pub fn load_headers(&self) -> impl Iterator<Item = ProgramHeader<'_>> {
         self.program_headers()
             .filter(|p_h| p_h.header_type() == 0x01)
+    }
+}
+
+#[derive(Debug)]
+pub struct PatchError {
+    addr: usize,
+    page_size: usize,
+    prot: i32,
+}
+
+impl Display for PatchError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "Error while patching {:X}, page_size = {:X}, protection flags: {}",
+            self.addr, self.page_size, self.prot,
+        )
+    }
+}
+
+impl Error for PatchError {}
+
+/// Attempts to patch plt entry at entry_addr.
+/// Sets page protections containing entry_addr to PROT_WRITE | PROT_EXEC before replacing the pointer.
+/// After writing out reverts the page to solely PROT_READ.
+/// Returns the previous value contained in the entry_addr prior to patching.
+pub fn patch(entry_addr: usize, func: usize) -> Result<usize, PatchError> {
+    let page_size = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) as usize };
+    let page_aligned_addr = ((entry_addr as usize / page_size) * page_size) as *mut c_void;
+
+    unsafe {
+        // Set the memory page to read, write
+        let prot_res = libc::mprotect(
+            page_aligned_addr,
+            page_size,
+            libc::PROT_WRITE | libc::PROT_READ,
+        );
+        if prot_res != 0 {
+            return Err(PatchError {
+                addr: page_aligned_addr as usize,
+                page_size,
+                prot: libc::PROT_WRITE | libc::PROT_EXEC,
+            });
+        }
+
+        // Replace the function address
+        let previous_address = core::ptr::replace(entry_addr as *mut _, func as *mut c_void);
+
+        // Set the memory page protection back to read only
+        let prot_res = libc::mprotect(page_aligned_addr, page_size, libc::PROT_READ);
+        if prot_res != 0 {
+            return Err(PatchError {
+                addr: page_aligned_addr as usize,
+                page_size,
+                prot: libc::PROT_READ,
+            });
+        }
+
+        Ok(previous_address as usize)
     }
 }
 
