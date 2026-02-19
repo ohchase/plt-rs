@@ -1,8 +1,8 @@
 use anyhow::Result;
-use plt_rs::{collect_modules, DynamicLibrary, RelocationTable};
+use plt_rs::{DynamicLibrary, RelocationTable};
 
 fn main() -> Result<()> {
-    let entries = collect_modules();
+    let entries = plt_rs::collect_modules();
     println!("collected {} modules", entries.len());
 
     for entry in entries.into_iter() {

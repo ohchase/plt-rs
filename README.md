@@ -1,6 +1,6 @@
 # Plt-rs
-![Crates.io](https://img.shields.io/crates/v/plt-rs)
-![Crates.io License](https://img.shields.io/crates/l/plt-rs)
+[![Crates.io](https://img.shields.io/crates/v/plt-rs)](https://crates.io/crates/plt-rs)
+[![Crates.io License](https://img.shields.io/crates/l/plt-rs)](https://github.com/ohchase/plt-rs/blob/master/LICENSE)
 
 ## Overview
 By crawling the dynamically loaded objects of an executable we can hook exported functions.
@@ -24,15 +24,36 @@ highlighted builds
 - ![armv7-linux-androideabi](https://github.com/ohchase/plt-rs/actions/workflows/armv7-linux-androideabi.yml/badge.svg)
 
 ## Worked Example hooking `getpid`
-Here we are hooking our own executables usages of libc getpid.
-Refer to `examples/hook_getpid.rs` for the full example, supporting android and 32 bit.
-A good chunk of the code is for the actual pointer replacement to hook the function!
+Here we are hooking our own executables usages of libc getpid,
+and then restoring the function back to the original libc implementation.
 
 ```rust
+use anyhow::anyhow;
+use anyhow::Result;
+use plt_rs::DynamicLibrary;
 
-/// our own get pid function
-unsafe fn getpid() -> u32 {
+unsafe fn hook_getpid() -> u32 {
     999
+}
+
+/// Finding executable target differs on unix and android
+#[cfg(target_os = "linux")]
+fn find_executable<'a>() -> Option<plt_rs::LoadedLibrary<'a>> {
+    let loaded_modules = plt_rs::collect_modules();
+    loaded_modules.into_iter().next()
+}
+
+/// Finding executable target differs on unix and android
+#[cfg(target_os = "android")]
+fn find_executable<'a>() -> Option<plt_rs::LoadedLibrary<'a>> {
+    let executable = std::env::current_exe().expect("current exe");
+    let file_stem = executable.file_stem()?;
+    let file_stem = file_stem.to_str()?;
+    let loaded_modules = plt_rs::collect_modules();
+    loaded_modules
+        .into_iter()
+        .filter(|lib| lib.name().contains(file_stem))
+        .next()
 }
 
 fn main() -> Result<()> {
@@ -43,55 +64,43 @@ fn main() -> Result<()> {
     println!("successfully identified executable");
 
     let dyn_lib = DynamicLibrary::initialize(executable_entry)?;
-    println!("successfully initialied dynamic library for instrumentation");
+    println!("successfully initialized dynamic library for instrumentation");
 
-    let target_function =
-        dyn_lib.try_find_function("getpid").ok_or(anyhow!("unable to find getpid symbol"))?;
+    let target_function = dyn_lib
+        .try_find_function("getpid")
+        .ok_or(anyhow!("unable to find getpid symbol"))?;
     println!(
-        "successfully identified libc getpid offset: {:#X?}",
+        "successfully identified libc getpid offset: {:X?}",
         target_function.r_offset
     );
 
-    let base_addr = dyn_lib.library().addr();
-    let plt_fn_ptr = (base_addr + target_function.r_offset as usize) as *mut *mut c_void;
-    let page_size = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) as usize };
-    let plt_page = ((plt_fn_ptr as usize / page_size) * page_size) as *mut c_void;
-    println!("page start for function is {plt_page:#X?}");
-
-    let _stored_address = unsafe {
-        // Set the memory page to read, write
-        let prot_res = libc::mprotect(plt_page, page_size, libc::PROT_WRITE | libc::PROT_READ);
-        if prot_res != 0 {
-            println!("protection res: {prot_res}");
-            return Err(anyhow!("mprotect to rw"));
-        }
-
-        // Replace the function address
-        let previous_address = std::ptr::replace(plt_fn_ptr, getpid as *mut _);
-
-        // Set the memory page protection back to read only
-        let prot_res = libc::mprotect(plt_page, page_size, libc::PROT_READ);
-        if prot_res != 0 {
-            return Err(anyhow!("mprotect to r"));
-        }
-
-        previous_address as *const c_void
-    };
+    let base_addr = dyn_lib.base_addr();
+    let plt_func_ptr = base_addr + target_function.r_offset as usize;
+    let previous_func = plt_rs::patch(plt_func_ptr, hook_getpid as usize)?;
+    println!("cached previous function as value: {:X}", previous_func);
 
     let get_pid = unsafe { libc::getpid() };
-    println!("new pid is: {get_pid}");
+    println!("application new pid is: {get_pid}");
+
+    let _ = plt_rs::patch(plt_func_ptr, previous_func)?;
+    println!("restored plt entry");
+
+    let get_pid = unsafe { libc::getpid() };
+    println!("application restored pid is: {get_pid}");
 
     Ok(())
 }
 ```
 
 ```terminal
-application pid is 127765
+application pid is 159911
 successfully identified executable
-successfully initialied dynamic library for instrumentation
-successfully identified libc getpid offset: 0x7E460
-page start for function is 0x000061019c41b000
-new pid is: 999
+successfully initialized dynamic library for instrumentation
+successfully identified libc getpid offset: 7FD38
+cached previous function as value: FFFF9B7AD6C0
+application new pid is: 999
+restored plt entry
+application restored pid is: 159911
 ```
 
 ## References / Inspirations
